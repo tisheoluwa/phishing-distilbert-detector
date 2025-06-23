@@ -4,4 +4,4 @@ streamlit
 pandas
 python-dotenv
 huggingface_hub
-
+matplotlib
