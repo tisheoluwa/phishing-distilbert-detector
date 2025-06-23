@@ -7,14 +7,11 @@ from dotenv import load_dotenv
 from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
 import matplotlib.pyplot as plt
 
-# --- Load environment or Streamlit secrets ---
-try:
-    ADMIN_PASSWORD = st.secrets["ADMIN_PASSWORD"]
-except Exception:
-    load_dotenv()
-    ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+# Load environment variables
+load_dotenv()
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
-# --- Load model from Hugging Face ---
+# Load model and tokenizer from Hugging Face Hub
 MODEL_PATH = "tisheoluwa/phishing-distilbert"
 tokenizer = DistilBertTokenizerFast.from_pretrained(MODEL_PATH)
 model = DistilBertForSequenceClassification.from_pretrained(MODEL_PATH)
@@ -44,7 +41,8 @@ def load_user_logs(username):
     path = os.path.join("logs", f"{username}.csv")
     if os.path.exists(path):
         return pd.read_csv(path)
-    return None
+    else:
+        return None
 
 def load_all_logs():
     data = {}
@@ -57,29 +55,34 @@ def load_all_logs():
     return data
 
 def plot_prediction_chart(df):
-    if df is not None and not df.empty:
-        chart_data = df['label'].value_counts()
-        st.bar_chart(chart_data)
+    if "label" not in df.columns:
+        return None
+    chart_data = df["label"].value_counts()
+    fig, ax = plt.subplots()
+    ax.pie(chart_data, labels=chart_data.index, autopct="%1.1f%%", startangle=90)
+    ax.axis("equal")
+    return fig
 
-# --- Streamlit Layout ---
+# --- App Layout ---
 st.set_page_config(page_title="Phishing Email & URL Detector", layout="centered")
-st.title("🛡️ Phishing Email & URL Detector")
+st.title("\U0001F6E1 Phishing Email & URL Detector")
 st.markdown("Use NLP to detect whether an email or URL is **phishing** or **legitimate**.")
 
-tab1, tab2 = st.tabs(["🔍 Predict", "📄 View Logs"])
+# --- Tabs ---
+tab1, tab2 = st.tabs(["\U0001F50D Predict", "\U0001F4C4 View Logs"])
 
 # --- Predict Tab ---
 with tab1:
-    st.header("👤 Enter your username")
+    st.header("\U0001F464 Enter your username")
     username = st.text_input("Username (for saving your history):")
 
-    st.markdown("**📧 Paste email or URL content here:**")
+    st.markdown("**\U0001F4EC Paste email or URL content here:**")
     input_text = st.text_area("", height=200)
 
-    st.markdown("**📁 Or upload a `.txt` or `.csv` file:**")
+    st.markdown("**Or upload a `.txt` or `.csv` file:**")
     file = st.file_uploader("", type=["txt", "csv"])
 
-    if st.button("🔍 Detect"):
+    if st.button("\U0001F50D Detect"):
         if not username:
             st.warning("Please enter a username.")
         else:
@@ -89,17 +92,18 @@ with tab1:
                 texts.append(input_text)
 
             if file:
-                try:
-                    if file.name.endswith(".txt"):
-                        texts.append(file.read().decode("utf-8").strip())
-                    elif file.name.endswith(".csv"):
+                if file.name.endswith(".txt"):
+                    file_content = file.read().decode("utf-8")
+                    texts.append(file_content.strip())
+                elif file.name.endswith(".csv"):
+                    try:
                         df = pd.read_csv(file)
                         if "text" in df.columns:
                             texts.extend(df["text"].dropna().tolist())
                         else:
                             st.error("CSV must contain a 'text' column.")
-                except Exception as e:
-                    st.error(f"Error reading file: {e}")
+                    except Exception as e:
+                        st.error(f"Error reading CSV: {e}")
 
             if texts:
                 results = []
@@ -107,17 +111,16 @@ with tab1:
                     label, conf = classify_text(txt)
                     results.append((txt, label, f"{conf * 100:.2f}%"))
                     log_prediction(username, txt, label, conf)
-                st.success("Detection complete.")
+
                 result_df = pd.DataFrame(results, columns=["Text", "Prediction", "Confidence"])
+                st.success("Detection complete.")
                 st.dataframe(result_df)
-                st.markdown("### 📊 Prediction Summary")
-                plot_prediction_chart(result_df)
             else:
                 st.warning("No valid input provided.")
 
 # --- Logs Tab ---
 with tab2:
-    st.header("📘 View Logs")
+    st.header("\U0001F4D4 View Logs")
     admin_mode = st.checkbox("I am admin")
 
     if admin_mode:
@@ -129,7 +132,9 @@ with tab2:
                 for user, log_df in all_logs.items():
                     st.subheader(f"User: {user}")
                     st.dataframe(log_df)
-                    plot_prediction_chart(log_df)
+                    fig = plot_prediction_chart(log_df)
+                    if fig:
+                        st.pyplot(fig)
             else:
                 st.error("Invalid admin password.")
     else:
@@ -138,6 +143,8 @@ with tab2:
             logs = load_user_logs(user)
             if logs is not None:
                 st.dataframe(logs)
-                plot_prediction_chart(logs)
+                fig = plot_prediction_chart(logs)
+                if fig:
+                    st.pyplot(fig)
             else:
                 st.info("No logs found for this user.")
