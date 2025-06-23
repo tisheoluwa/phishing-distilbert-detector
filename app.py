@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 import torch
 import os
+import matplotlib.pyplot as plt
 from datetime import datetime
 from dotenv import load_dotenv
 from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
-import matplotlib.pyplot as plt
 
 # Load environment variables
 load_dotenv()
@@ -51,17 +51,17 @@ def load_all_logs():
         if file.endswith(".csv"):
             user = file.replace(".csv", "")
             df = pd.read_csv(os.path.join("logs", file))
-            data[user] = df
+            if 'label' in df.columns:
+                data[user] = df
     return data
 
 def plot_prediction_chart(df):
-    if "label" not in df.columns:
-        return None
-    chart_data = df["label"].value_counts()
-    fig, ax = plt.subplots()
-    ax.pie(chart_data, labels=chart_data.index, autopct="%1.1f%%", startangle=90)
-    ax.axis("equal")
-    return fig
+    if df is not None and 'label' in df.columns:
+        chart_data = df['label'].value_counts()
+        fig, ax = plt.subplots()
+        ax.pie(chart_data, labels=chart_data.index, autopct='%1.1f%%', startangle=90)
+        ax.axis('equal')
+        st.pyplot(fig)
 
 # --- App Layout ---
 st.set_page_config(page_title="Phishing Email & URL Detector", layout="centered")
@@ -87,10 +87,8 @@ with tab1:
             st.warning("Please enter a username.")
         else:
             texts = []
-
             if input_text:
                 texts.append(input_text)
-
             if file:
                 if file.name.endswith(".txt"):
                     file_content = file.read().decode("utf-8")
@@ -132,9 +130,7 @@ with tab2:
                 for user, log_df in all_logs.items():
                     st.subheader(f"User: {user}")
                     st.dataframe(log_df)
-                    fig = plot_prediction_chart(log_df)
-                    if fig:
-                        st.pyplot(fig)
+                    plot_prediction_chart(log_df)
             else:
                 st.error("Invalid admin password.")
     else:
@@ -143,8 +139,6 @@ with tab2:
             logs = load_user_logs(user)
             if logs is not None:
                 st.dataframe(logs)
-                fig = plot_prediction_chart(logs)
-                if fig:
-                    st.pyplot(fig)
+                plot_prediction_chart(logs)
             else:
                 st.info("No logs found for this user.")
