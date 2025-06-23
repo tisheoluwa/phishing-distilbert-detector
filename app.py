@@ -5,12 +5,16 @@ import os
 from datetime import datetime
 from dotenv import load_dotenv
 from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
+import matplotlib.pyplot as plt
 
-# Load environment variables
-load_dotenv()
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+# --- Load environment or Streamlit secrets ---
+try:
+    ADMIN_PASSWORD = st.secrets["ADMIN_PASSWORD"]
+except Exception:
+    load_dotenv()
+    ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
-# Load model and tokenizer from Hugging Face Hub
+# --- Load model from Hugging Face ---
 MODEL_PATH = "tisheoluwa/phishing-distilbert"
 tokenizer = DistilBertTokenizerFast.from_pretrained(MODEL_PATH)
 model = DistilBertForSequenceClassification.from_pretrained(MODEL_PATH)
@@ -40,8 +44,7 @@ def load_user_logs(username):
     path = os.path.join("logs", f"{username}.csv")
     if os.path.exists(path):
         return pd.read_csv(path)
-    else:
-        return None
+    return None
 
 def load_all_logs():
     data = {}
@@ -53,12 +56,16 @@ def load_all_logs():
             data[user] = df
     return data
 
-# --- App Layout ---
+def plot_prediction_chart(df):
+    if df is not None and not df.empty:
+        chart_data = df['label'].value_counts()
+        st.bar_chart(chart_data)
+
+# --- Streamlit Layout ---
 st.set_page_config(page_title="Phishing Email & URL Detector", layout="centered")
 st.title("🛡️ Phishing Email & URL Detector")
 st.markdown("Use NLP to detect whether an email or URL is **phishing** or **legitimate**.")
 
-# --- Tabs ---
 tab1, tab2 = st.tabs(["🔍 Predict", "📄 View Logs"])
 
 # --- Predict Tab ---
@@ -66,10 +73,10 @@ with tab1:
     st.header("👤 Enter your username")
     username = st.text_input("Username (for saving your history):")
 
-    st.markdown("📩 **Paste email or URL content here:**")
+    st.markdown("**📧 Paste email or URL content here:**")
     input_text = st.text_area("", height=200)
 
-    st.markdown("📎 **Or upload a `.txt` or `.csv` file:**")
+    st.markdown("**📁 Or upload a `.txt` or `.csv` file:**")
     file = st.file_uploader("", type=["txt", "csv"])
 
     if st.button("🔍 Detect"):
@@ -82,18 +89,17 @@ with tab1:
                 texts.append(input_text)
 
             if file:
-                if file.name.endswith(".txt"):
-                    file_content = file.read().decode("utf-8")
-                    texts.append(file_content.strip())
-                elif file.name.endswith(".csv"):
-                    try:
+                try:
+                    if file.name.endswith(".txt"):
+                        texts.append(file.read().decode("utf-8").strip())
+                    elif file.name.endswith(".csv"):
                         df = pd.read_csv(file)
                         if "text" in df.columns:
                             texts.extend(df["text"].dropna().tolist())
                         else:
                             st.error("CSV must contain a 'text' column.")
-                    except Exception as e:
-                        st.error(f"Error reading CSV: {e}")
+                except Exception as e:
+                    st.error(f"Error reading file: {e}")
 
             if texts:
                 results = []
@@ -101,20 +107,11 @@ with tab1:
                     label, conf = classify_text(txt)
                     results.append((txt, label, f"{conf * 100:.2f}%"))
                     log_prediction(username, txt, label, conf)
-
-                result_df = pd.DataFrame(results, columns=["Text", "Prediction", "Confidence"])
                 st.success("Detection complete.")
+                result_df = pd.DataFrame(results, columns=["Text", "Prediction", "Confidence"])
                 st.dataframe(result_df)
-
-                # --- Summary Chart ---
-                summary = pd.DataFrame(result_df["Prediction"].value_counts()).reset_index()
-                summary.columns = ["Prediction", "Count"]
-                st.subheader("📊 Prediction Summary")
-                st.bar_chart(summary.set_index("Prediction"))
-
-                # --- CSV Export ---
-                csv = result_df.to_csv(index=False).encode("utf-8")
-                st.download_button("📥 Download CSV", data=csv, file_name="detection_results.csv", mime="text/csv")
+                st.markdown("### 📊 Prediction Summary")
+                plot_prediction_chart(result_df)
             else:
                 st.warning("No valid input provided.")
 
@@ -132,6 +129,7 @@ with tab2:
                 for user, log_df in all_logs.items():
                     st.subheader(f"User: {user}")
                     st.dataframe(log_df)
+                    plot_prediction_chart(log_df)
             else:
                 st.error("Invalid admin password.")
     else:
@@ -140,7 +138,6 @@ with tab2:
             logs = load_user_logs(user)
             if logs is not None:
                 st.dataframe(logs)
-                csv_log = logs.to_csv(index=False).encode("utf-8")
-                st.download_button("📥 Download Your Log", data=csv_log, file_name=f"{user}_logs.csv", mime="text/csv")
+                plot_prediction_chart(logs)
             else:
                 st.info("No logs found for this user.")
