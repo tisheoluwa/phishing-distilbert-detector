@@ -10,8 +10,8 @@ from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassific
 load_dotenv()
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
-# Load model and tokenizer
-MODEL_PATH = "phishing_bert_model"
+# Load model and tokenizer from Hugging Face Hub
+MODEL_PATH = "tisheoluwa/phishing-distilbert"
 tokenizer = DistilBertTokenizerFast.from_pretrained(MODEL_PATH)
 model = DistilBertForSequenceClassification.from_pretrained(MODEL_PATH)
 model.eval()
