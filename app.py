@@ -55,24 +55,24 @@ def load_all_logs():
 
 # --- App Layout ---
 st.set_page_config(page_title="Phishing Email & URL Detector", layout="centered")
-st.title("\U0001F6E1 Phishing Email & URL Detector")
+st.title("🛡️ Phishing Email & URL Detector")
 st.markdown("Use NLP to detect whether an email or URL is **phishing** or **legitimate**.")
 
 # --- Tabs ---
-tab1, tab2 = st.tabs(["\U0001F50D Predict", "\U0001F4C4 View Logs"])
+tab1, tab2 = st.tabs(["🔍 Predict", "📄 View Logs"])
 
 # --- Predict Tab ---
 with tab1:
-    st.header("\U0001F464 Enter your username")
+    st.header("👤 Enter your username")
     username = st.text_input("Username (for saving your history):")
 
-    st.markdown("**\U0001F4EC Paste email or URL content here:**")
+    st.markdown("📩 **Paste email or URL content here:**")
     input_text = st.text_area("", height=200)
 
-    st.markdown("**Or upload a `.txt` or `.csv` file:**")
+    st.markdown("📎 **Or upload a `.txt` or `.csv` file:**")
     file = st.file_uploader("", type=["txt", "csv"])
 
-    if st.button("\U0001F50D Detect"):
+    if st.button("🔍 Detect"):
         if not username:
             st.warning("Please enter a username.")
         else:
@@ -99,18 +99,28 @@ with tab1:
                 results = []
                 for txt in texts:
                     label, conf = classify_text(txt)
-                    results.append((txt, label, conf))
+                    results.append((txt, label, f"{conf * 100:.2f}%"))
                     log_prediction(username, txt, label, conf)
 
                 result_df = pd.DataFrame(results, columns=["Text", "Prediction", "Confidence"])
                 st.success("Detection complete.")
                 st.dataframe(result_df)
+
+                # --- Summary Chart ---
+                summary = pd.DataFrame(result_df["Prediction"].value_counts()).reset_index()
+                summary.columns = ["Prediction", "Count"]
+                st.subheader("📊 Prediction Summary")
+                st.bar_chart(summary.set_index("Prediction"))
+
+                # --- CSV Export ---
+                csv = result_df.to_csv(index=False).encode("utf-8")
+                st.download_button("📥 Download CSV", data=csv, file_name="detection_results.csv", mime="text/csv")
             else:
                 st.warning("No valid input provided.")
 
 # --- Logs Tab ---
 with tab2:
-    st.header("\U0001F4D4 View Logs")
+    st.header("📘 View Logs")
     admin_mode = st.checkbox("I am admin")
 
     if admin_mode:
@@ -130,5 +140,7 @@ with tab2:
             logs = load_user_logs(user)
             if logs is not None:
                 st.dataframe(logs)
+                csv_log = logs.to_csv(index=False).encode("utf-8")
+                st.download_button("📥 Download Your Log", data=csv_log, file_name=f"{user}_logs.csv", mime="text/csv")
             else:
                 st.info("No logs found for this user.")
