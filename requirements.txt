@@ -1,0 +1,14 @@
+transformers>=4.40.0
+datasets>=2.14.0
+evaluate>=0.4.0
+pandas>=1.5.0
+numpy>=1.23.0
+scikit-learn>=1.1.0
+torch>=2.0.0
+streamlit>=1.26.0
+scipy>=1.10.0
+protobuf<4.0.0  # streamlit compatibility
+python-dotenv>=0.21.0
+
+
+
